@@ -36,7 +36,7 @@ def get_speed_info(response_time: float) -> tuple[str, str]:
         return "🔴", "very slow"
 
 # Bot and dispatcher initialization
-bot = Bot(token=config.BOT_TOKEN)
+bot = Bot(token=config.BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher()
 
 dp.message.filter(admin_filter)
@@ -49,28 +49,28 @@ proxy_manager = ProxyManager()
 async def cmd_start(message: Message):
     """Command /start"""
     welcome_text = """
-🤖 **DOWN DETECTOR**
+🤖 <b>DOWN DETECTOR</b>
 
-**Доступные команды:**
-• `/add <название> <url>` - добавить сайт для мониторинга
-• `/remove <название>` - удалить сайт из мониторинга
-• `/list` - показать все отслеживаемые сайты
-• `/check` - проверить все сайты сейчас
-• `/status` - показать статус всех сайтов
+<b>Доступные команды:</b>
+• /add &lt;название&gt; &lt;url&gt; - добавить сайт для мониторинга
+• /remove &lt;название&gt; - удалить сайт из мониторинга
+• /list - показать все отслеживаемые сайты
+• /check - проверить все сайты сейчас
+• /status - показать статус всех сайтов
 
-**Команды для прокси:**
-• `/proxy_add <название> <url> <страна>` - добавить прокси
-• `/proxy_remove <название>` - удалить прокси
-• `/proxy_list` - показать все прокси
-• `/proxy_test <название>` - протестировать прокси
+<b>Команды для прокси:</b>
+• /proxy_add &lt;название&gt; &lt;url&gt; &lt;страна&gt; - добавить прокси
+• /proxy_remove &lt;название&gt; - удалить прокси
+• /proxy_list - показать все прокси
+• /proxy_test &lt;название&gt; - протестировать прокси
 
-**Примеры:**
-• `/add google https://google.com`
-• `/proxy_add us_proxy http://proxy.example.com:8080 us`
-• `/remove google`
+<b>Примеры:</b>
+• /add google https://google.com
+• /proxy_add us_proxy http://proxy.example.com:8080 us
+• /remove google
     """
     
-    await message.answer(welcome_text, parse_mode="Markdown")
+    await message.answer(welcome_text)
 
 @dp.message(Command("add"))
 async def cmd_add_site(message: Message):
@@ -79,7 +79,7 @@ async def cmd_add_site(message: Message):
         # Parse command: /add name url
         parts = message.text.split(maxsplit=2)
         if len(parts) < 3:
-            await message.answer("❌ Неправильный формат команды!\n\nИспользуйте: `/add <название> <url>`\n\nПример: `/add google https://google.com`", parse_mode="Markdown")
+            await message.answer("❌ Неправильный формат команды!\n\nИспользуйте: /add &lt;название&gt; &lt;url&gt;\n\nПример: /add google https://google.com")
             return
         
         name = parts[1].lower()
@@ -91,10 +91,10 @@ async def cmd_add_site(message: Message):
         
         # Add site
         if await site_monitor.add_site(name, url, message.from_user.id):
-            response_text = f"✅ Сайт **{name}** успешно добавлен для мониторинга!\n\nURL: {url}\n🔄 При каждой проверке будет использоваться случайный прокси"
-            await message.answer(response_text, parse_mode="Markdown")
+            response_text = f"✅ Сайт <b>{name}</b> успешно добавлен для мониторинга!\n\nURL: {url}\n🔄 При каждой проверке будет использоваться случайный прокси"
+            await message.answer(response_text)
         else:
-            await message.answer(f"❌ Сайт с названием **{name}** уже существует!", parse_mode="Markdown")
+            await message.answer(f"❌ Сайт с названием <b>{name}</b> уже существует!")
     
     except Exception as e:
         logger.error(f"Error adding site: {e}")
@@ -106,15 +106,15 @@ async def cmd_remove_site(message: Message):
     try:
         parts = message.text.split(maxsplit=1)
         if len(parts) < 2:
-            await message.answer("❌ Неправильный формат команды!\n\nИспользуйте: `/remove <название>`\n\nПример: `/remove google`", parse_mode="Markdown")
+            await message.answer("❌ Неправильный формат команды!\n\nИспользуйте: /remove &lt;название&gt;\n\nПример: /remove google")
             return
         
         name = parts[1].lower()
         
         if await site_monitor.remove_site(name):
-            await message.answer(f"✅ Сайт **{name}** удален из мониторинга!", parse_mode="Markdown")
+            await message.answer(f"✅ Сайт <b>{name}</b> удален из мониторинга!")
         else:
-            await message.answer(f"❌ Сайт с названием **{name}** не найден!", parse_mode="Markdown")
+            await message.answer(f"❌ Сайт с названием <b>{name}</b> не найден!")
     
     except Exception as e:
         logger.error(f"Error removing site: {e}")
@@ -126,17 +126,17 @@ async def cmd_list_sites(message: Message):
     sites = site_monitor.get_sites()
     
     if not sites:
-        await message.answer("📝 Список отслеживаемых сайтов пуст.\n\nДобавьте первый сайт командой `/add <название> <url>`", parse_mode="Markdown")
+        await message.answer("📝 Список отслеживаемых сайтов пуст.\n\nДобавьте первый сайт командой /add &lt;название&gt; &lt;url&gt;")
         return
     
-    sites_text = "📝 **Отслеживаемые сайты:**\n\n"
+    sites_text = "📝 <b>Отслеживаемые сайты:</b>\n\n"
     for name, info in sites.items():
         status_emoji = "🟢" if info.get("is_up", True) else "🔴"
         last_check = info.get("last_check")
         if last_check != None:
             last_check = datetime.fromisoformat(last_check).strftime("%d.%m.%Y %H:%M")
         
-        sites_text += f"{status_emoji} **{name}**\n"
+        sites_text += f"{status_emoji} <b>{name}</b>\n"
         sites_text += f"   URL: {info['url']}\n"
         sites_text += f"   Последняя проверка: {last_check}\n"
         
@@ -148,7 +148,7 @@ async def cmd_list_sites(message: Message):
         
         sites_text += "\n"
     
-    await message.answer(sites_text, parse_mode="Markdown")
+    await message.answer(sites_text)
 
 @dp.message(Command("check"))
 async def cmd_check_sites(message: Message):
@@ -156,7 +156,7 @@ async def cmd_check_sites(message: Message):
     sites = site_monitor.get_sites()
     
     if not sites:
-        await message.answer("📝 Нет сайтов для проверки.\n\nДобавьте сайты командой `/add <название> <url>`", parse_mode="Markdown")
+        await message.answer("📝 Нет сайтов для проверки.\n\nДобавьте сайты командой /add &lt;название&gt; &lt;url&gt;")
         return
     
     # Send message about start of checking
@@ -166,13 +166,13 @@ async def cmd_check_sites(message: Message):
     results = await site_monitor.check_all_sites(proxy_manager)
     
     # Form report
-    report = "📊 **Site check results:**\n\n"
+    report = "📊 <b>Site check results:</b>\n\n"
     
     for result in results:
         status_emoji = "🟢" if result["is_up"] else "🔴"
         status_text = "Available" if result["is_up"] else "Unavailable"
         
-        report += f"{status_emoji} **{result['name']}**\n"
+        report += f"{status_emoji} <b>{result['name']}</b>\n"
         report += f"   URL: {result['url']}\n"
         report += f"   Статус: {status_text}\n"
         
@@ -198,8 +198,7 @@ async def cmd_check_sites(message: Message):
     await bot.edit_message_text(
         chat_id=message.chat.id,
         message_id=status_msg.message_id,
-        text=report,
-        parse_mode="Markdown"
+        text=report
     )
 
 @dp.message(Command("status"))
@@ -208,14 +207,14 @@ async def cmd_status(message: Message):
     sites = site_monitor.get_sites()
     
     if not sites:
-        await message.answer("📝 Нет отслеживаемых сайтов.\n\nДобавьте сайты командой `/add <название> <url>`", parse_mode="Markdown")
+        await message.answer("📝 Нет отслеживаемых сайтов.\n\nДобавьте сайты командой /add &lt;название&gt; &lt;url&gt;")
         return
     
-    status_text = "📊 **Текущий статус сайтов:**\n\n"
+    status_text = "📊 <b>Текущий статус сайтов:</b>\n\n"
     
     for name, info in sites.items():
         status_emoji = "🟢" if info.get("is_up", True) else "🔴"
-        status_text += f"{status_emoji} **{name}**\n"
+        status_text += f"{status_emoji} <b>{name}</b>\n"
         status_text += f"   URL: {info['url']}\n"
         
         last_check = info.get("last_check")
@@ -234,7 +233,7 @@ async def cmd_status(message: Message):
         
         status_text += "\n"
     
-    await message.answer(status_text, parse_mode="Markdown")
+    await message.answer(status_text)
 
 # Commands for proxy management
 @dp.message(Command("proxy_add"))
@@ -244,7 +243,7 @@ async def cmd_add_proxy(message: Message):
         # Parse command: /proxy_add name url country
         parts = message.text.split(maxsplit=3)
         if len(parts) < 4:
-            await message.answer("❌ Неправильный формат команды!\n\nИспользуйте: `/proxy_add <название> <url> <страна>`\n\nПример: `/proxy_add us_proxy http://proxy.example.com:8080 us`", parse_mode="Markdown")
+            await message.answer("❌ Неправильный формат команды!\n\nИспользуйте: /proxy_add &lt;название&gt; &lt;url&gt; &lt;страна&gt;\n\nПример: /proxy_add us_proxy http://proxy.example.com:8080 us")
             return
         
         name = parts[1].lower()
@@ -257,9 +256,9 @@ async def cmd_add_proxy(message: Message):
         
         # Add proxy
         if await proxy_manager.add_proxy(name, proxy_url, country, message.from_user.id):
-            await message.answer(f"✅ Прокси **{name}** успешно добавлен!\n\nURL: {proxy_url}\n🌍 Страна: {country.upper()}", parse_mode="Markdown")
+            await message.answer(f"✅ Прокси <b>{name}</b> успешно добавлен!\n\nURL: {proxy_url}\n🌍 Страна: {country.upper()}")
         else:
-            await message.answer(f"❌ Прокси с названием **{name}** уже существует!", parse_mode="Markdown")
+            await message.answer(f"❌ Прокси с названием <b>{name}</b> уже существует!")
     
     except Exception as e:
         logger.error(f"Error adding proxy: {e}")
@@ -272,15 +271,15 @@ async def cmd_remove_proxy(message: Message):
     try:
         parts = message.text.split(maxsplit=1)
         if len(parts) < 2:
-            await message.answer("❌ Неправильный формат команды!\n\nИспользуйте: `/proxy_remove <название>`\n\nПример: `/proxy_remove us_proxy`", parse_mode="Markdown")
+            await message.answer("❌ Неправильный формат команды!\n\nИспользуйте: /proxy_remove &lt;название&gt;\n\nПример: /proxy_remove us_proxy")
             return
         
         name = parts[1].lower()
         
         if await proxy_manager.remove_proxy(name):
-            await message.answer(f"✅ Прокси **{name}** удален!", parse_mode="Markdown")
+            await message.answer(f"✅ Прокси <b>{name}</b> удален!")
         else:
-            await message.answer(f"❌ Прокси с названием **{name}** не найден!", parse_mode="Markdown")
+            await message.answer(f"❌ Прокси с названием <b>{name}</b> не найден!")
     
     except Exception as e:
         logger.error(f"Error removing proxy: {e}")
@@ -293,15 +292,15 @@ async def cmd_list_proxies(message: Message):
     proxies = proxy_manager.get_proxies()
     
     if not proxies:
-        await message.answer("📝 Список прокси пуст.\n\nДобавьте первый прокси командой `/proxy_add <название> <url> <страна>`", parse_mode="Markdown")
+        await message.answer("📝 Список прокси пуст.\n\nДобавьте первый прокси командой /proxy_add &lt;название&gt; &lt;url&gt; &lt;страна&gt;")
         return
     
-    proxies_text = "📝 **Доступные прокси:**\n\n"
+    proxies_text = "📝 <b>Доступные прокси:</b>\n\n"
     for name, info in proxies.items():
         status_emoji = "🟢" if info.get("is_active", True) else "🔴"
         country_emoji = "🌍"
         
-        proxies_text += f"{status_emoji} **{name}**\n"
+        proxies_text += f"{status_emoji} <b>{name}</b>\n"
         proxies_text += f"   URL: {info['proxy_url']}\n"
         proxies_text += f"   {country_emoji} Страна: {info['country'].upper()}\n"
         proxies_text += f"   ✅ Успешно: {info.get('success_count', 0)}\n"
@@ -314,7 +313,7 @@ async def cmd_list_proxies(message: Message):
         
         proxies_text += "\n"
     
-    await message.answer(proxies_text, parse_mode="Markdown")
+    await message.answer(proxies_text)
 
 
 @dp.message(Command("proxy_test"))
@@ -323,18 +322,18 @@ async def cmd_test_proxy(message: Message):
     try:
         parts = message.text.split(maxsplit=1)
         if len(parts) < 2:
-            await message.answer("❌ Неправильный формат команды!\n\nИспользуйте: `/proxy_test <название>`\n\nПример: `/proxy_test us_proxy`", parse_mode="Markdown")
+            await message.answer("❌ Неправильный формат команды!\n\nИспользуйте: /proxy_test &lt;название&gt;\n\nПример: /proxy_test us_proxy")
             return
         
         name = parts[1].lower()
         proxy_info = proxy_manager.proxies.get(name)
         
         if not proxy_info:
-            await message.answer(f"❌ Прокси с названием **{name}** не найден!", parse_mode="Markdown")
+            await message.answer(f"❌ Прокси с названием <b>{name}</b> не найден!")
             return
         
         # Send message about start of testing
-        status_msg = await message.answer(f"🔍 Testing proxy **{name}**...")
+        status_msg = await message.answer(f"🔍 Testing proxy <b>{name}</b>...")
         
         # Test proxy
         is_working = await proxy_manager.test_proxy(proxy_info["proxy_url"])
@@ -343,15 +342,13 @@ async def cmd_test_proxy(message: Message):
             await bot.edit_message_text(
                 chat_id=message.chat.id,
                 message_id=status_msg.message_id,
-                text=f"✅ Прокси **{name}** работает!\n\nURL: {proxy_info['proxy_url']}\n🌍 Страна: {proxy_info['country'].upper()}",
-                parse_mode="Markdown"
+                text=f"✅ Прокси <b>{name}</b> работает!\n\nURL: {proxy_info['proxy_url']}\n🌍 Страна: {proxy_info['country'].upper()}"
             )
         else:
             await bot.edit_message_text(
                 chat_id=message.chat.id,
                 message_id=status_msg.message_id,
-                text=f"❌ Прокси **{name}** не работает!\n\nURL: {proxy_info['proxy_url']}\n🌍 Страна: {proxy_info['country'].upper()}",
-                parse_mode="Markdown"
+                text=f"❌ Прокси <b>{name}</b> не работает!\n\nURL: {proxy_info['proxy_url']}\n🌍 Страна: {proxy_info['country'].upper()}"
             )
     
     except Exception as e:
