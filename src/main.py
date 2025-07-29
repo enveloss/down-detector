@@ -163,7 +163,7 @@ async def cmd_check_sites(message: Message):
     status_msg = await message.answer("🔍 Checking site availability...")
     
     # Check all sites
-    results = await site_monitor.check_all_sites()
+    results = await site_monitor.check_all_sites(proxy_manager)
     
     # Form report
     report = "📊 **Site check results:**\n\n"
