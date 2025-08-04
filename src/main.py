@@ -35,6 +35,20 @@ def get_speed_info(response_time: float) -> tuple[str, str]:
     else:
         return "🔴", "very slow"
 
+def get_content_type_emoji(content_type: str) -> str:
+    """Returns emoji for content type"""
+    if not content_type:
+        return "📄"
+    content_type_lower = content_type.lower()
+    if "application/json" in content_type_lower:
+        return "📋"
+    elif "text/html" in content_type_lower:
+        return "🌐"
+    elif "text/" in content_type_lower:
+        return "📄"
+    else:
+        return "📄"
+
 # Bot and dispatcher initialization
 bot = Bot(token=config.BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher()
@@ -52,7 +66,7 @@ async def cmd_start(message: Message):
 🤖 <b>DOWN DETECTOR</b>
 
 <b>Доступные команды:</b>
-• /add &lt;название&gt; &lt;url&gt; - добавить сайт для мониторинга
+• /add &lt;название&gt; &lt;url&gt; [content-type] - добавить сайт для мониторинга
 • /remove &lt;название&gt; - удалить сайт из мониторинга
 • /list - показать все отслеживаемые сайты
 • /check - проверить все сайты сейчас
@@ -64,8 +78,15 @@ async def cmd_start(message: Message):
 • /proxy_list - показать все прокси
 • /proxy_test &lt;название&gt; - протестировать прокси
 
+<b>Поддерживаемые типы контента:</b>
+• 🌐 HTML страницы (text/html) - по умолчанию
+• 📋 JSON API (application/json)
+• 📄 Текстовые ответы (text/*)
+
 <b>Примеры:</b>
 • /add google https://google.com
+• /add api_ping https://api.example.com/ping application/json
+• /add text_api https://api.example.com/status text/plain
 • /proxy_add us_proxy http://proxy.example.com:8080 us
 • /remove google
     """
@@ -76,22 +97,29 @@ async def cmd_start(message: Message):
 async def cmd_add_site(message: Message):
     """Command for adding a site"""
     try:
-        # Parse command: /add name url
-        parts = message.text.split(maxsplit=2)
+        # Parse command: /add name url [content-type]
+        parts = message.text.split(maxsplit=3)
         if len(parts) < 3:
-            await message.answer("❌ Неправильный формат команды!\n\nИспользуйте: /add &lt;название&gt; &lt;url&gt;\n\nПример: /add google https://google.com")
+            await message.answer("❌ Неправильный формат команды!\n\nИспользуйте: /add &lt;название&gt; &lt;url&gt; [content-type]\n\nПримеры:\n• /add google https://google.com\n• /add api_ping https://api.example.com/ping application/json\n• /add text_api https://api.example.com/status text/plain")
             return
         
         name = parts[1].lower()
         url = parts[2]
+        expected_content_type = parts[3] if len(parts) > 3 else "text/html"
         
         # Check URL format
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
         
         # Add site
-        if await site_monitor.add_site(name, url, message.from_user.id):
-            response_text = f"✅ Сайт <b>{name}</b> успешно добавлен для мониторинга!\n\nURL: {url}\n🔄 При каждой проверке будет использоваться случайный прокси"
+        if await site_monitor.add_site(name, url, message.from_user.id, expected_content_type):
+            content_emoji = "🌐"
+            if expected_content_type == "application/json":
+                content_emoji = "📋"
+            elif expected_content_type.startswith("text/"):
+                content_emoji = "📄"
+            
+            response_text = f"✅ Сайт <b>{name}</b> успешно добавлен для мониторинга!\n\nURL: {url}\n{content_emoji} Ожидаемый тип: {expected_content_type}\n🔄 При каждой проверке будет использоваться случайный прокси"
             await message.answer(response_text)
         else:
             await message.answer(f"❌ Сайт с названием <b>{name}</b> уже существует!")
@@ -138,7 +166,22 @@ async def cmd_list_sites(message: Message):
         
         sites_text += f"{status_emoji} <b>{name}</b>\n"
         sites_text += f"   URL: {info['url']}\n"
+        
+        # Add expected content type
+        expected_content_type = info.get("expected_content_type", "text/html")
+        content_emoji = "🌐"
+        if expected_content_type == "application/json":
+            content_emoji = "📋"
+        elif expected_content_type.startswith("text/"):
+            content_emoji = "📄"
+        sites_text += f"   {content_emoji} Ожидаемый тип: {expected_content_type}\n"
         sites_text += f"   Последняя проверка: {last_check}\n"
+        
+        # Add actual content type information
+        last_content_type = info.get("last_content_type", "")
+        if last_content_type:
+            content_emoji = get_content_type_emoji(last_content_type)
+            sites_text += f"   {content_emoji} Фактический тип: {last_content_type}\n"
         
         # Add response time if available
         last_response_time = info.get("last_response_time")
@@ -176,6 +219,16 @@ async def cmd_check_sites(message: Message):
         report += f"   URL: {result['url']}\n"
         report += f"   Статус: {status_text}\n"
         
+        # Add expected content type
+        site_info = site_monitor.get_sites().get(result['name'], {})
+        expected_content_type = site_info.get("expected_content_type", "text/html")
+        content_emoji = "🌐"
+        if expected_content_type == "application/json":
+            content_emoji = "📋"
+        elif expected_content_type.startswith("text/"):
+            content_emoji = "📄"
+        report += f"   {content_emoji} Ожидаемый тип: {expected_content_type}\n"
+        
         # Add response time with speed emoji
         if result.get("response_time") is not None:
             speed_emoji, speed_desc = get_speed_info(result['response_time'])
@@ -189,6 +242,16 @@ async def cmd_check_sites(message: Message):
         
         if result.get("status_code"):
             report += f"   Код ответа: {result['status_code']}\n"
+            
+            # Add content type information
+            content_type = result.get("content_type", "")
+            if content_type:
+                content_emoji = get_content_type_emoji(content_type)
+                report += f"   {content_emoji} Фактический тип: {content_type}\n"
+                
+                # Show content type mismatch warning
+                if not result.get("content_type_matches", True):
+                    report += f"   ⚠️ Тип контента не совпадает с ожидаемым!\n"
         elif result.get("error"):
             report += f"   Ошибка: {result['error']}\n"
         
@@ -217,6 +280,15 @@ async def cmd_status(message: Message):
         status_text += f"{status_emoji} <b>{name}</b>\n"
         status_text += f"   URL: {info['url']}\n"
         
+        # Add expected content type
+        expected_content_type = info.get("expected_content_type", "text/html")
+        content_emoji = "🌐"
+        if expected_content_type == "application/json":
+            content_emoji = "📋"
+        elif expected_content_type.startswith("text/"):
+            content_emoji = "📄"
+        status_text += f"   {content_emoji} Ожидаемый тип: {expected_content_type}\n"
+        
         last_check = info.get("last_check")
         if last_check:
             last_check_dt = datetime.fromisoformat(last_check)
@@ -225,6 +297,12 @@ async def cmd_status(message: Message):
         last_status = info.get("last_status")
         if last_status is not None:
             status_text += f"   Последний код ответа: {last_status}\n"
+            
+            # Add content type information
+            last_content_type = info.get("last_content_type", "")
+            if last_content_type:
+                content_emoji = get_content_type_emoji(last_content_type)
+                status_text += f"   {content_emoji} Фактический тип: {last_content_type}\n"
         
         last_response_time = info.get("last_response_time")
         if last_response_time is not None:

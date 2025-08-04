@@ -36,7 +36,7 @@ class SiteMonitor:
         async with aiofiles.open(SITES_FILE, 'w', encoding='utf-8') as f:
             await f.write(json.dumps(self.sites, ensure_ascii=False, indent=2))
     
-    async def add_site(self, name: str, url: str, user_id: int) -> bool:
+    async def add_site(self, name: str, url: str, user_id: int, expected_content_type: str = "text/html") -> bool:
         """Async adds new site for monitoring"""
         if name in self.sites:
             return False
@@ -45,10 +45,12 @@ class SiteMonitor:
             "url": url,
             "added_by": user_id,
             "added_at": datetime.now().isoformat(),
+            "expected_content_type": expected_content_type,
             "last_check": None,
             "last_status": None,
             "last_response_time": None,
-            "is_up": True
+            "is_up": True,
+            "last_content_type": None
         }
         await self.save_sites()
         return True
@@ -101,15 +103,17 @@ class SiteMonitor:
                     # Calculate response time
                     response_time = round((time.time() - start_time) * 1000, 2)  # in milliseconds
                     
-                    # Check status code and content-type
-                    is_up = response.status < 400
-                    
-                    # Check content-type for text/html
+                    # Check content-type for various response types
                     content_type = response.headers.get('content-type', '').lower()
-                    is_html = 'text/html' in content_type
                     
-                    # Site is considered available only if status is OK AND content-type contains text/html
-                    is_up = is_up and is_html
+                    # Get expected content type from site info
+                    expected_content_type = self.sites.get(name, {}).get("expected_content_type", "text/html").lower()
+                    
+                    # Check if actual content type matches expected
+                    content_type_matches = expected_content_type in content_type
+
+                    # Check status code and content-type
+                    is_up = response.status < 400 and content_type_matches
                     
                     status_info = {
                         "status_code": response.status,
@@ -118,7 +122,8 @@ class SiteMonitor:
                         "response_time": response_time,
                         "proxy_used": proxy_url,
                         "content_type": content_type,
-                        "is_html": is_html
+                        "expected_content_type": expected_content_type,
+                        "content_type_matches": content_type_matches
                     }
                     
                     # Update site information
@@ -127,6 +132,7 @@ class SiteMonitor:
                         self.sites[name]["last_status"] = status_info["status_code"]
                         self.sites[name]["last_response_time"] = response_time
                         self.sites[name]["is_up"] = is_up
+                        self.sites[name]["last_content_type"] = content_type
                         await self.save_sites()
                     
                     # Update proxy statistics
@@ -153,6 +159,7 @@ class SiteMonitor:
                 self.sites[name]["last_status"] = None
                 self.sites[name]["last_response_time"] = None
                 self.sites[name]["is_up"] = False
+                self.sites[name]["last_content_type"] = None
                 await self.save_sites()
             
             # Update proxy statistics on error
