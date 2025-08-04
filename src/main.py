@@ -49,6 +49,41 @@ def get_content_type_emoji(content_type: str) -> str:
     else:
         return "📄"
 
+async def send_long_message(bot: Bot, chat_id: int, text: str, max_length: int = 4000):
+    """Split and send long messages that exceed Telegram's limit"""
+    if len(text) <= max_length:
+        await bot.send_message(chat_id, text)
+        return
+    
+    # Split text into parts
+    parts = []
+    current_part = ""
+    lines = text.split('\n')
+    
+    for line in lines:
+        # If adding this line would exceed the limit, start a new part
+        if len(current_part + line + '\n') > max_length and current_part:
+            parts.append(current_part.strip())
+            current_part = line + '\n'
+        else:
+            current_part += line + '\n'
+    
+    # Add the last part
+    if current_part.strip():
+        parts.append(current_part.strip())
+    
+    # Send all parts
+    for i, part in enumerate(parts):
+        if len(parts) > 1:
+            # Add part number for multi-part messages
+            part_text = f"📄 Часть {i+1}/{len(parts)}\n\n{part}"
+        else:
+            part_text = part
+        
+        await bot.send_message(chat_id, part_text)
+        # Small delay between messages to avoid rate limiting
+        await asyncio.sleep(0.1)
+
 # Bot and dispatcher initialization
 bot = Bot(token=config.BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher()
@@ -191,7 +226,7 @@ async def cmd_list_sites(message: Message):
         
         sites_text += "\n"
     
-    await message.answer(sites_text)
+    await send_long_message(bot, message.chat.id, sites_text)
 
 @dp.message(Command("check"))
 async def cmd_check_sites(message: Message):
@@ -257,12 +292,9 @@ async def cmd_check_sites(message: Message):
         
         report += "\n"
     
-    # Update message with results
-    await bot.edit_message_text(
-        chat_id=message.chat.id,
-        message_id=status_msg.message_id,
-        text=report
-    )
+    # Delete the status message and send results
+    await bot.delete_message(chat_id=message.chat.id, message_id=status_msg.message_id)
+    await send_long_message(bot, message.chat.id, report)
 
 @dp.message(Command("status"))
 async def cmd_status(message: Message):
@@ -311,7 +343,7 @@ async def cmd_status(message: Message):
         
         status_text += "\n"
     
-    await message.answer(status_text)
+    await send_long_message(bot, message.chat.id, status_text)
 
 # Commands for proxy management
 @dp.message(Command("proxy_add"))
@@ -391,8 +423,7 @@ async def cmd_list_proxies(message: Message):
         
         proxies_text += "\n"
     
-    await message.answer(proxies_text)
-
+    await send_long_message(bot, message.chat.id, proxies_text)
 
 @dp.message(Command("proxy_test"))
 async def cmd_test_proxy(message: Message):
